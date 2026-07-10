@@ -81,6 +81,9 @@ function buildMinecraftCompose(s: GameServer): string {
     ENABLE_COMMAND_BLOCK: String(s.enable_command_block ?? false),
     ALLOW_FLIGHT: String(s.allow_flight ?? false),
     SPAWN_PROTECTION: String(s.spawn_protection ?? 16),
+    ENABLE_RCON: 'true',
+    RCON_PASSWORD: s.sftp_password || 'rconpass123',
+    RCON_PORT: '25575',
     ...(s.seed ? { SEED: s.seed } : {}),
     ...(s.extra_env_vars ?? {}),
   }

@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
+import { Rcon } from 'rcon-client'
 import { createApplication, deployApp, stopApp, deleteApp, getAppLogs, updateApplication, getAppStatus, wipeServerMap } from '../services/dokploy'
 
 // ── Catalog (reproduit côté backend pour validation) ───────────────────────
@@ -258,11 +259,32 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
 
   // Envoyer une commande
   .post('/:id/command', async ({ params: { id }, body }) => {
-    // Note: L'envoi de commandes interactives via Dokploy n'est pas exposé en REST natif.
-    // Pour une vraie implémentation, il faudrait utiliser RCON pour Minecraft, ou l'API websocket de Dokploy.
-    // Pour l'instant, on renvoie un succès simulé pour la démonstration.
+    const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
+    if (!rows[0]) return error(404, { message: 'Serveur introuvable' })
+    const server = rows[0]
+    
     const { cmd } = body as { cmd: string }
-    return { ok: true, message: `Commande '${cmd}' simulée avec succès. (RCON / WebSocket à implémenter)` }
+    
+    // Si c'est du Minecraft, on passe par RCON
+    if (server.game === 'minecraft') {
+      try {
+        const host = process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '').split(':')[0] || '127.0.0.1'
+        const port = server.port + 1
+        const password = server.sftp_password || 'rconpass123'
+        
+        const rcon = await Rcon.connect({ host, port, password })
+        const response = await rcon.send(cmd)
+        rcon.end()
+        
+        return { ok: true, message: response || 'Commande exécutée' }
+      } catch (err: any) {
+        console.error('RCON Error:', err)
+        return error(500, { message: `RCON Error: ${err.message}. Le serveur est-il bien démarré avec RCON activé ?` })
+      }
+    }
+    
+    // Autres jeux : simulé pour l'instant
+    return { ok: true, message: `Commande '${cmd}' simulée avec succès.` }
   })
 
   // Update settings
