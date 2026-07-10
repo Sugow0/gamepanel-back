@@ -1,4 +1,4 @@
-import { Elysia, t } from 'elysia'
+import { Elysia, t, error } from 'elysia'
 import { db } from '../db'
 import { createApplication, deployApp, stopApp, deleteApp, getAppLogs } from '../services/dokploy'
 
@@ -53,14 +53,14 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
   })
 
   // Get one
-  .get('/:id', async ({ params: { id }, error }) => {
+  .get('/:id', async ({ params: { id } }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     if (!rows[0]) return error(404, { message: 'Serveur introuvable' })
     return rowToServer(rows[0])
   })
 
   // Create
-  .post('/', async ({ body, error }) => {
+  .post('/', async ({ body }) => {
     const { game, name, port, memory, maxPlayers, motd = '', ...rest } = body as any
     const max_players = maxPlayers
 
@@ -159,7 +159,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
   })
 
   // Actions: start / stop / restart
-  .post('/:id/:action', async ({ params: { id, action }, error }) => {
+  .post('/:id/:action', async ({ params: { id, action } }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const s = rows[0]
     if (!s) return error(404, { message: 'Serveur introuvable' })
@@ -188,7 +188,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
   })
 
   // Logs
-  .get('/:id/logs', async ({ params: { id }, query, error }) => {
+  .get('/:id/logs', async ({ params: { id }, query }) => {
     const { rows } = await db.query('SELECT compose_id FROM servers WHERE id = $1', [id])
     if (!rows[0]?.compose_id) return error(404, { message: 'Serveur introuvable' })
     const lines = await getAppLogs(rows[0].compose_id, Number(query.lines ?? 200))
@@ -196,7 +196,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
   })
 
   // Update settings
-  .patch('/:id', async ({ params: { id }, body, error }) => {
+  .patch('/:id', async ({ params: { id }, body }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     if (!rows[0]) return error(404, { message: 'Serveur introuvable' })
     const b = body as any
@@ -221,7 +221,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
   })
 
   // Delete
-  .delete('/:id', async ({ params: { id }, error }) => {
+  .delete('/:id', async ({ params: { id } }) => {
     const { rows } = await db.query('SELECT compose_id FROM servers WHERE id = $1', [id])
     if (!rows[0]) return error(404, { message: 'Serveur introuvable' })
     if (rows[0].compose_id) await deleteApp(rows[0].compose_id).catch(() => {})
