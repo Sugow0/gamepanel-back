@@ -189,7 +189,7 @@ export async function deleteApp(id: string) {
   return api('compose.delete', { composeId: id })
 }
 
-export async function getAppLogs(composeId: string, lines = 200): Promise<string[]> {
-  const result = await api('compose.fetchLogs', { composeId, lines })
+export async function getAppLogs(composeId: string, appName: string, lines = 200): Promise<string[]> {
+  const result = await api('compose.fetchLogs', { composeId, appName, lines })
   return ((result?.data as string) ?? '').split('\n').filter(Boolean)
 }

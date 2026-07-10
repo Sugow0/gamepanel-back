@@ -192,9 +192,18 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
 
   // Logs
   .get('/:id/logs', async ({ params: { id }, query }) => {
-    const { rows } = await db.query('SELECT compose_id FROM servers WHERE id = $1', [id])
+    const { rows } = await db.query('SELECT compose_id, dokloy_app FROM servers WHERE id = $1', [id])
     if (!rows[0]?.compose_id) return error(404, { message: 'Serveur introuvable' })
-    const lines = await getAppLogs(rows[0].compose_id, Number(query.lines ?? 200))
+    
+    let lines: string[] = []
+    try {
+      // Pour une application compose dans Dokploy, l'appName correspond généralement 
+      // au nom du service défini dans le docker-compose.yml, par ex: rows[0].dokloy_app
+      lines = await getAppLogs(rows[0].compose_id, rows[0].dokloy_app, Number(query.lines ?? 200))
+    } catch (e: any) {
+      lines = [`Erreur lors de la récupération des logs: ${e.message}`]
+    }
+    
     return { lines }
   })
 
