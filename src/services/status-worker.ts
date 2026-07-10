@@ -15,9 +15,14 @@ export function startStatusWorker() {
           const dokployStatus = await getAppStatus(server.compose_id)
           let newStatus = server.status
 
-          if (dokployStatus === 'running' || dokployStatus === 'online') newStatus = 'online'
-          else if (dokployStatus === 'stopped' || dokployStatus === 'offline') newStatus = 'offline'
+          if (dokployStatus === 'running' || dokployStatus === 'online' || dokployStatus === 'done') newStatus = 'online'
+          else if (dokployStatus === 'stopped' || dokployStatus === 'offline' || dokployStatus === 'idle') newStatus = 'offline'
           else if (dokployStatus === 'error') newStatus = 'error'
+          else if (dokployStatus === 'unknown') {
+            // Fallback comme pour le bouton sync
+            if (server.status === 'starting' || server.status === 'creating') newStatus = 'online'
+            if (server.status === 'stopping') newStatus = 'offline'
+          }
 
           // Mettre à jour si le statut a changé
           if (newStatus !== server.status && newStatus !== 'unknown') {

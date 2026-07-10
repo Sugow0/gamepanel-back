@@ -204,8 +204,8 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
         const dokployStatus = await getAppStatus(s.compose_id)
         // Map dokploy status to ours (running -> online, stopped -> offline, etc.)
         let newStatus = s.status
-        if (dokployStatus === 'running' || dokployStatus === 'online') newStatus = 'online'
-        else if (dokployStatus === 'stopped' || dokployStatus === 'offline') newStatus = 'offline'
+        if (dokployStatus === 'running' || dokployStatus === 'online' || dokployStatus === 'done') newStatus = 'online'
+        else if (dokployStatus === 'stopped' || dokployStatus === 'offline' || dokployStatus === 'idle') newStatus = 'offline'
         else if (dokployStatus === 'error') newStatus = 'error'
         else {
           // Si on ne peut pas map, on regarde si on est bloqué depuis longtemps
