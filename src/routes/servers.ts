@@ -268,15 +268,22 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
     // Si c'est du Minecraft, on passe par RCON
     if (server.game === 'minecraft') {
       try {
+        // Nettoyage de la commande pour éviter les erreurs courantes :
+        // 1. Enlever "rcon-cli " si l'utilisateur a copié/collé la doc
+        // 2. Enlever le "/" au début
+        let cleanCmd = cmd.trim()
+        if (cleanCmd.startsWith('rcon-cli ')) cleanCmd = cleanCmd.replace('rcon-cli ', '')
+        if (cleanCmd.startsWith('/')) cleanCmd = cleanCmd.substring(1)
+        
         const host = process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '').split(':')[0] || '127.0.0.1'
         const port = server.port + 1
         const password = server.sftp_password || 'rconpass123'
         
         const rcon = await Rcon.connect({ host, port, password })
-        const response = await rcon.send(cmd)
+        const response = await rcon.send(cleanCmd)
         rcon.end()
         
-        return { ok: true, message: response || 'Commande exécutée' }
+        return { ok: true, message: response || `Commande '${cleanCmd}' exécutée (sans retour texte).` }
       } catch (err: any) {
         console.error('RCON Error:', err)
         return error(500, { message: `RCON Error: ${err.message}. Le serveur est-il bien démarré avec RCON activé ?` })
