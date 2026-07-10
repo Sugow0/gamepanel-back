@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
-import { createApplication, deployApp, stopApp, deleteApp, getAppLogs, updateApplication, getAppStatus } from '../services/dokploy'
+import { createApplication, deployApp, stopApp, deleteApp, getAppLogs, updateApplication, getAppStatus, wipeServerMap } from '../services/dokploy'
 
 // ── Catalog (reproduit côté backend pour validation) ───────────────────────
 const GAME_CATALOG: Record<string, { lgsmId: string | null; lgsmTag: string | null; image: string }> = {
@@ -227,7 +227,22 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
       }
     }
     
-    return error(400, { message: 'Action invalide (start|stop|restart|sync)' })
+    if (action === 'reset_map') {
+      await db.query("UPDATE servers SET status = 'stopping' WHERE id = $1", [id])
+      try {
+        await wipeServerMap(rowToServer(s) as any)
+        
+        // Restart the server
+        await db.query("UPDATE servers SET status = 'starting' WHERE id = $1", [id])
+        await deployApp(s.compose_id)
+        
+        return { ok: true, status: 'starting' }
+      } catch (e: any) {
+        return error(500, { message: e.message })
+      }
+    }
+    
+    return error(400, { message: 'Action invalide (start|stop|restart|sync|reset_map)' })
   })
 
   // Logs

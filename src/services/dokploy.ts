@@ -221,3 +221,31 @@ export async function getAppStatus(composeId: string): Promise<string> {
     return 'error'
   }
 }
+
+export async function wipeServerMap(server: GameServer) {
+  if (!server.compose_id) throw new Error('Serveur non déployé')
+  
+  // 1. Stop the current app to release file locks
+  await stopApp(server.compose_id).catch(() => {})
+  
+  // 2. Temporarily deploy a wipe container
+  const wipeCompose = `version: "3.8"
+services:
+  wipe-map:
+    image: alpine
+    command: sh -c "rm -rf /data/world /data/world_nether /data/world_the_end"
+    volumes:
+      - ${server.id}-data:/data
+volumes:
+  ${server.id}-data:
+`
+  await api('compose.update', { composeId: server.compose_id, sourceType: 'raw', composeFile: wipeCompose })
+  await api('compose.deploy', { composeId: server.compose_id })
+  
+  // 3. Wait 10 seconds for the wipe to complete
+  await new Promise(r => setTimeout(r, 10000))
+  
+  // 4. Restore the original compose file
+  const originalCompose = buildCompose(server)
+  await api('compose.update', { composeId: server.compose_id, sourceType: 'raw', composeFile: originalCompose })
+}
