@@ -57,7 +57,8 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
 
   // Create
   .post('/', async ({ body, error }) => {
-    const { game, name, port, memory, max_players, motd = '', ...rest } = body as any
+    const { game, name, port, memory, maxPlayers, motd = '', ...rest } = body as any
+    const max_players = maxPlayers
 
     const gameInfo = GAME_CATALOG[game]
     if (!gameInfo) return error(400, { message: `Jeu inconnu: ${game}` })
@@ -85,12 +86,12 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
       [
         id, name, game, image, gameInfo.lgsmId, gameInfo.lgsmTag,
         port, memory, max_players, motd,
-        rest.mc_type ?? null, rest.version ?? null, rest.difficulty ?? 'normal',
-        rest.gamemode ?? 'survival', rest.pvp ?? true, rest.online_mode ?? true,
-        rest.whitelist ?? false, rest.seed ?? '', rest.view_distance ?? 10,
-        rest.enable_command_block ?? false, rest.allow_flight ?? false,
-        rest.spawn_protection ?? 16,
-        JSON.stringify(rest.extra_env_vars ?? {}),
+        rest.mcType ?? null, rest.mcVersion ?? null, rest.difficulty ?? 'normal',
+        rest.gamemode ?? 'survival', rest.pvp ?? true, rest.onlineMode ?? true,
+        rest.whitelist ?? false, rest.seed ?? '', rest.viewDistance ?? 10,
+        rest.enableCommandBlock ?? false, rest.allowFlight ?? false,
+        rest.spawnProtection ?? 16,
+        JSON.stringify(rest.extraEnvVars ?? {}),
         dokployApp, sftpPassword,
       ]
     )
@@ -99,15 +100,15 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
       id, game, name, image,
       lgsm_id: gameInfo.lgsmId, lgsm_tag: gameInfo.lgsmTag,
       status: 'creating', port, memory, max_players, motd,
-      mc_type: rest.mc_type, version: rest.version,
+      mc_type: rest.mcType, version: rest.mcVersion,
       difficulty: rest.difficulty ?? 'normal', gamemode: rest.gamemode ?? 'survival',
-      pvp: rest.pvp ?? true, online_mode: rest.online_mode ?? true,
+      pvp: rest.pvp ?? true, online_mode: rest.onlineMode ?? true,
       whitelist: rest.whitelist ?? false, seed: rest.seed ?? '',
-      view_distance: rest.view_distance ?? 10,
-      enable_command_block: rest.enable_command_block ?? false,
-      allow_flight: rest.allow_flight ?? false,
-      spawn_protection: rest.spawn_protection ?? 16,
-      extra_env_vars: rest.extra_env_vars ?? {},
+      view_distance: rest.viewDistance ?? 10,
+      enable_command_block: rest.enableCommandBlock ?? false,
+      allow_flight: rest.allowFlight ?? false,
+      spawn_protection: rest.spawnProtection ?? 16,
+      extra_env_vars: rest.extraEnvVars ?? {},
       dokloy_app: dokployApp, sftp_password: sftpPassword,
       players: { online: 0, max: max_players },
       ram: { used: 0, alloc: parseInt(memory) * 1024 || 4096 },
@@ -135,21 +136,21 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
       name:        t.String({ minLength: 2, maxLength: 64 }),
       port:        t.Number({ minimum: 1025, maximum: 65534 }),
       memory:      t.String(),
-      max_players: t.Number({ minimum: 1, maximum: 500 }),
+      maxPlayers:  t.Number({ minimum: 1, maximum: 500 }),
       motd:        t.Optional(t.String()),
-      mc_type:     t.Optional(t.String()),
-      version:     t.Optional(t.String()),
+      mcType:      t.Optional(t.String()),
+      mcVersion:   t.Optional(t.String()),
       difficulty:  t.Optional(t.String()),
       gamemode:    t.Optional(t.String()),
       pvp:         t.Optional(t.Boolean()),
-      online_mode: t.Optional(t.Boolean()),
+      onlineMode:  t.Optional(t.Boolean()),
       whitelist:   t.Optional(t.Boolean()),
       seed:        t.Optional(t.String()),
-      view_distance:        t.Optional(t.Number()),
-      enable_command_block: t.Optional(t.Boolean()),
-      allow_flight:         t.Optional(t.Boolean()),
-      spawn_protection:     t.Optional(t.Number()),
-      extra_env_vars:       t.Optional(t.Record(t.String(), t.String())),
+      viewDistance:         t.Optional(t.Number()),
+      enableCommandBlock:   t.Optional(t.Boolean()),
+      allowFlight:          t.Optional(t.Boolean()),
+      spawnProtection:      t.Optional(t.Number()),
+      extraEnvVars:         t.Optional(t.Record(t.String(), t.String())),
     }),
   })
 
@@ -193,9 +194,9 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
         pvp=$6, online_mode=$7, whitelist=$8, seed=$9, view_distance=$10,
         enable_command_block=$11, allow_flight=$12, spawn_protection=$13
        WHERE id=$14`,
-      [b.motd, b.memory, b.max_players, b.difficulty, b.gamemode,
-       b.pvp, b.online_mode, b.whitelist, b.seed, b.view_distance,
-       b.enable_command_block, b.allow_flight, b.spawn_protection, id]
+      [b.motd, b.memory, b.maxPlayers, b.difficulty, b.gamemode,
+       b.pvp, b.onlineMode, b.whitelist, b.seed, b.viewDistance,
+       b.enableCommandBlock, b.allowFlight, b.spawnProtection, id]
     )
     if (rows[0].compose_id && rows[0].status === 'online') {
       await deployApp(rows[0].compose_id)
