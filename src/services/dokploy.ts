@@ -76,7 +76,7 @@ function buildMinecraftCompose(s: GameServer): string {
     MOTD: s.motd ?? 'GamePanel Server',
     PVP: String(s.pvp ?? true),
     ONLINE_MODE: String(s.online_mode ?? true),
-    WHITELIST: String(s.whitelist ?? false),
+    ENABLE_WHITELIST: String(s.whitelist ?? false).toUpperCase(),
     VIEW_DISTANCE: String(s.view_distance ?? 10),
     ENABLE_COMMAND_BLOCK: String(s.enable_command_block ?? false),
     ALLOW_FLIGHT: String(s.allow_flight ?? false),
