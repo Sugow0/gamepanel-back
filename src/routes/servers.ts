@@ -1,0 +1,213 @@
+import { Elysia, t } from 'elysia'
+import { db } from '../db'
+import { createApplication, deployApp, stopApp, deleteApp, getAppLogs } from '../services/dokploy'
+
+// ── Catalog (reproduit côté backend pour validation) ───────────────────────
+const GAME_CATALOG: Record<string, { lgsmId: string | null; lgsmTag: string | null; image: string }> = {
+  minecraft: { lgsmId: null,            lgsmTag: null,       image: 'itzg/minecraft-server' },
+  cs2:       { lgsmId: 'cs2server',     lgsmTag: 'cs2',      image: 'ghcr.io/gameservermanagers/gameserver:cs2' },
+  tf2:       { lgsmId: 'tf2server',     lgsmTag: 'tf2',      image: 'ghcr.io/gameservermanagers/gameserver:tf2' },
+  ins:       { lgsmId: 'insserver',     lgsmTag: 'ins',      image: 'ghcr.io/gameservermanagers/gameserver:ins' },
+  squad:     { lgsmId: 'squadserver',   lgsmTag: 'squad',    image: 'ghcr.io/gameservermanagers/gameserver:squad' },
+  mh:        { lgsmId: 'mordhauserver', lgsmTag: 'mh',       image: 'ghcr.io/gameservermanagers/gameserver:mh' },
+  ark:       { lgsmId: 'arkserver',     lgsmTag: 'ark',      image: 'ghcr.io/gameservermanagers/gameserver:ark' },
+  rust:      { lgsmId: 'rustserver',    lgsmTag: 'rust',     image: 'ghcr.io/gameservermanagers/gameserver:rust' },
+  vh:        { lgsmId: 'vhserver',      lgsmTag: 'vh',       image: 'ghcr.io/gameservermanagers/gameserver:vh' },
+  sdtd:      { lgsmId: 'sdtdserver',    lgsmTag: 'sdtd',     image: 'ghcr.io/gameservermanagers/gameserver:sdtd' },
+  pz:        { lgsmId: 'pzserver',      lgsmTag: 'pz',       image: 'ghcr.io/gameservermanagers/gameserver:pz' },
+  gmod:      { lgsmId: 'gmodserver',    lgsmTag: 'gmod',     image: 'ghcr.io/gameservermanagers/gameserver:gmod' },
+  factorio:  { lgsmId: 'factorioserver',lgsmTag: 'factorio', image: 'ghcr.io/gameservermanagers/gameserver:factorio' },
+  sf:        { lgsmId: 'sfserver',      lgsmTag: 'sf',       image: 'ghcr.io/gameservermanagers/gameserver:sf' },
+  arma3:     { lgsmId: 'arma3server',   lgsmTag: 'arma3',    image: 'ghcr.io/gameservermanagers/gameserver:arma3' },
+  ac:        { lgsmId: 'acserver',      lgsmTag: 'ac',       image: 'ghcr.io/gameservermanagers/gameserver:ac' },
+}
+
+const randHex = (n = 12) =>
+  Buffer.from(crypto.getRandomValues(new Uint8Array(n))).toString('hex').slice(0, n).toUpperCase()
+
+// ── Row → camelCase helper ─────────────────────────────────────────────────
+function rowToServer(row: Record<string, any>) {
+  return {
+    ...row,
+    players:     { online: 0, max: row.max_players },
+    ram:         { used: 0,   alloc: parseInt(row.memory) * 1024 || 4096 },
+    cpu:         0,
+    uptime:      '—',
+    sftpPass:    row.sftp_password,
+    dokployApp:  row.dokloy_app,
+  }
+}
+
+// ── Routes ─────────────────────────────────────────────────────────────────
+
+export const serversRoutes = new Elysia({ prefix: '/servers' })
+
+  // List
+  .get('/', async () => {
+    const { rows } = await db.query('SELECT * FROM servers ORDER BY created_at DESC')
+    return rows.map(rowToServer)
+  })
+
+  // Get one
+  .get('/:id', async ({ params: { id }, error }) => {
+    const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
+    if (!rows[0]) return error(404, { message: 'Serveur introuvable' })
+    return rowToServer(rows[0])
+  })
+
+  // Create
+  .post('/', async ({ body, error }) => {
+    const { game, name, port, memory, max_players, motd = '', ...rest } = body as any
+
+    const gameInfo = GAME_CATALOG[game]
+    if (!gameInfo) return error(400, { message: `Jeu inconnu: ${game}` })
+
+    // Check port conflict
+    const { rows: conflict } = await db.query(
+      "SELECT id FROM servers WHERE port = $1 AND status != 'offline'", [port]
+    )
+    if (conflict.length > 0) return error(409, { message: 'Port déjà utilisé' })
+
+    const id          = `srv-${Date.now()}`
+    const sftpPassword = randHex(12)
+    const dokployApp  = `${game}-${name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40)}`
+    const image       = gameInfo.image
+
+    await db.query(
+      `INSERT INTO servers
+        (id, name, game, image, lgsm_id, lgsm_tag, status, port, memory, max_players,
+         motd, mc_type, version, difficulty, gamemode, pvp, online_mode, whitelist,
+         seed, view_distance, enable_command_block, allow_flight, spawn_protection,
+         extra_env_vars, dokloy_app, sftp_password, created_at)
+       VALUES
+        ($1,$2,$3,$4,$5,$6,'creating',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
+         $19,$20,$21,$22,$23,$24,$25,NOW())`,
+      [
+        id, name, game, image, gameInfo.lgsmId, gameInfo.lgsmTag,
+        port, memory, max_players, motd,
+        rest.mc_type ?? null, rest.version ?? null, rest.difficulty ?? 'normal',
+        rest.gamemode ?? 'survival', rest.pvp ?? true, rest.online_mode ?? true,
+        rest.whitelist ?? false, rest.seed ?? '', rest.view_distance ?? 10,
+        rest.enable_command_block ?? false, rest.allow_flight ?? false,
+        rest.spawn_protection ?? 16,
+        JSON.stringify(rest.extra_env_vars ?? {}),
+        dokployApp, sftpPassword,
+      ]
+    )
+
+    const newServer = {
+      id, game, name, image,
+      lgsm_id: gameInfo.lgsmId, lgsm_tag: gameInfo.lgsmTag,
+      status: 'creating', port, memory, max_players, motd,
+      mc_type: rest.mc_type, version: rest.version,
+      difficulty: rest.difficulty ?? 'normal', gamemode: rest.gamemode ?? 'survival',
+      pvp: rest.pvp ?? true, online_mode: rest.online_mode ?? true,
+      whitelist: rest.whitelist ?? false, seed: rest.seed ?? '',
+      view_distance: rest.view_distance ?? 10,
+      enable_command_block: rest.enable_command_block ?? false,
+      allow_flight: rest.allow_flight ?? false,
+      spawn_protection: rest.spawn_protection ?? 16,
+      extra_env_vars: rest.extra_env_vars ?? {},
+      dokloy_app: dokployApp, sftp_password: sftpPassword,
+      players: { online: 0, max: max_players },
+      ram: { used: 0, alloc: parseInt(memory) * 1024 || 4096 },
+      cpu: 0, uptime: '—',
+    }
+
+    // Deploy async — ne bloque pas la réponse
+    ;(async () => {
+      try {
+        const { composeId } = await createApplication(newServer as any)
+        await db.query(
+          "UPDATE servers SET compose_id = $1, status = 'starting' WHERE id = $2",
+          [composeId, id]
+        )
+      } catch (e) {
+        console.error('[Deploy]', id, e)
+        await db.query("UPDATE servers SET status = 'error' WHERE id = $1", [id])
+      }
+    })()
+
+    return rowToServer(newServer as any)
+  }, {
+    body: t.Object({
+      game:        t.String(),
+      name:        t.String({ minLength: 2, maxLength: 64 }),
+      port:        t.Number({ minimum: 1025, maximum: 65534 }),
+      memory:      t.String(),
+      max_players: t.Number({ minimum: 1, maximum: 500 }),
+      motd:        t.Optional(t.String()),
+      mc_type:     t.Optional(t.String()),
+      version:     t.Optional(t.String()),
+      difficulty:  t.Optional(t.String()),
+      gamemode:    t.Optional(t.String()),
+      pvp:         t.Optional(t.Boolean()),
+      online_mode: t.Optional(t.Boolean()),
+      whitelist:   t.Optional(t.Boolean()),
+      seed:        t.Optional(t.String()),
+      view_distance:        t.Optional(t.Number()),
+      enable_command_block: t.Optional(t.Boolean()),
+      allow_flight:         t.Optional(t.Boolean()),
+      spawn_protection:     t.Optional(t.Number()),
+      extra_env_vars:       t.Optional(t.Record(t.String(), t.String())),
+    }),
+  })
+
+  // Actions: start / stop / restart
+  .post('/:id/:action', async ({ params: { id, action }, error }) => {
+    const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
+    const s = rows[0]
+    if (!s) return error(404, { message: 'Serveur introuvable' })
+    if (!s.compose_id) return error(400, { message: 'Serveur pas encore déployé' })
+
+    if (action === 'start' || action === 'restart') {
+      await db.query("UPDATE servers SET status = 'starting' WHERE id = $1", [id])
+      await deployApp(s.compose_id)
+      return { ok: true, status: 'starting' }
+    }
+    if (action === 'stop') {
+      await db.query("UPDATE servers SET status = 'stopping' WHERE id = $1", [id])
+      await stopApp(s.compose_id)
+      await db.query("UPDATE servers SET status = 'offline', cpu = 0 WHERE id = $1", [id])
+      return { ok: true, status: 'offline' }
+    }
+    return error(400, { message: 'Action invalide (start|stop|restart)' })
+  })
+
+  // Logs
+  .get('/:id/logs', async ({ params: { id }, query, error }) => {
+    const { rows } = await db.query('SELECT compose_id FROM servers WHERE id = $1', [id])
+    if (!rows[0]?.compose_id) return error(404, { message: 'Serveur introuvable' })
+    const lines = await getAppLogs(rows[0].compose_id, Number(query.lines ?? 200))
+    return { lines }
+  })
+
+  // Update settings
+  .patch('/:id', async ({ params: { id }, body, error }) => {
+    const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
+    if (!rows[0]) return error(404, { message: 'Serveur introuvable' })
+    const b = body as any
+    await db.query(
+      `UPDATE servers SET
+        motd=$1, memory=$2, max_players=$3, difficulty=$4, gamemode=$5,
+        pvp=$6, online_mode=$7, whitelist=$8, seed=$9, view_distance=$10,
+        enable_command_block=$11, allow_flight=$12, spawn_protection=$13
+       WHERE id=$14`,
+      [b.motd, b.memory, b.max_players, b.difficulty, b.gamemode,
+       b.pvp, b.online_mode, b.whitelist, b.seed, b.view_distance,
+       b.enable_command_block, b.allow_flight, b.spawn_protection, id]
+    )
+    if (rows[0].compose_id && rows[0].status === 'online') {
+      await deployApp(rows[0].compose_id)
+    }
+    return { ok: true }
+  })
+
+  // Delete
+  .delete('/:id', async ({ params: { id }, error }) => {
+    const { rows } = await db.query('SELECT compose_id FROM servers WHERE id = $1', [id])
+    if (!rows[0]) return error(404, { message: 'Serveur introuvable' })
+    if (rows[0].compose_id) await deleteApp(rows[0].compose_id).catch(() => {})
+    await db.query('DELETE FROM servers WHERE id = $1', [id])
+    return { ok: true }
+  })
