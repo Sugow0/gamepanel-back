@@ -27,6 +27,7 @@ const randHex = (n = 12) =>
 
 // ── Row → camelCase helper ─────────────────────────────────────────────────
 function rowToServer(row: Record<string, any>) {
+  const sftpPort = 2220 + parseInt(row.id.replace(/\D/g, '')) % 1000
   return {
     ...row,
     players:     { online: 0, max: row.max_players },
@@ -34,6 +35,9 @@ function rowToServer(row: Record<string, any>) {
     cpu:         0,
     uptime:      '—',
     sftpPass:    row.sftp_password,
+    sftpPort,
+    sftpUser:    `sftp-${row.dokloy_app}`,
+    ip:          process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '') || 'votre_ip_serveur',
     dokployApp:  row.dokloy_app,
   }
 }
@@ -163,14 +167,22 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
 
     if (action === 'start' || action === 'restart') {
       await db.query("UPDATE servers SET status = 'starting' WHERE id = $1", [id])
-      await deployApp(s.compose_id)
-      return { ok: true, status: 'starting' }
+      try {
+        await deployApp(s.compose_id)
+        return { ok: true, status: 'starting' }
+      } catch (e: any) {
+        return error(500, { message: e.message })
+      }
     }
     if (action === 'stop') {
       await db.query("UPDATE servers SET status = 'stopping' WHERE id = $1", [id])
-      await stopApp(s.compose_id)
-      await db.query("UPDATE servers SET status = 'offline', cpu = 0 WHERE id = $1", [id])
-      return { ok: true, status: 'offline' }
+      try {
+        await stopApp(s.compose_id)
+        await db.query("UPDATE servers SET status = 'offline', cpu = 0 WHERE id = $1", [id])
+        return { ok: true, status: 'offline' }
+      } catch (e: any) {
+        return error(500, { message: e.message })
+      }
     }
     return error(400, { message: 'Action invalide (start|stop|restart)' })
   })
@@ -199,7 +211,11 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
        b.enableCommandBlock, b.allowFlight, b.spawnProtection, id]
     )
     if (rows[0].compose_id && rows[0].status === 'online') {
-      await deployApp(rows[0].compose_id)
+      try {
+        await deployApp(rows[0].compose_id)
+      } catch (e: any) {
+        return error(500, { message: e.message })
+      }
     }
     return { ok: true }
   })
