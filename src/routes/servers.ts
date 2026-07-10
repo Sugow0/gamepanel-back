@@ -224,11 +224,19 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
        b.enableCommandBlock ?? b.enable_command_block, b.allowFlight ?? b.allow_flight, b.spawnProtection ?? b.spawn_protection,
        b.extraEnvVars ?? b.extra_env_vars ?? {}, id]
     )
-    if (rows[0].compose_id && rows[0].status === 'online') {
+    if (rows[0].compose_id) {
       try {
-        await deployApp(rows[0].compose_id)
-      } catch (e: any) {
-        return error(500, { message: e.message })
+        const updated = (await db.query('SELECT * FROM servers WHERE id = $1', [id])).rows[0]
+        const compose = buildCompose(updated)
+        // Met toujours à jour le fichier compose dans Dokploy
+        await api('compose.update', { composeId: updated.compose_id, sourceType: 'raw', composeFile: compose })
+        
+        // Redéploie le conteneur si le serveur est déjà en cours de fonctionnement ou de démarrage
+        if (['online', 'starting'].includes(updated.status)) {
+          await api('compose.deploy', { composeId: updated.compose_id })
+        }
+      } catch (e) {
+        console.error('Failed to update compose:', e)
       }
     }
     return { ok: true }
