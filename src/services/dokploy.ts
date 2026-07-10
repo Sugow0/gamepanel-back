@@ -211,3 +211,13 @@ export async function getAppLogs(composeId: string, appName: string, lines = 200
   const result = await api('compose.fetchLogs', { composeId, appName, lines })
   return ((result?.data as string) ?? '').split('\n').filter(Boolean)
 }
+
+export async function getAppStatus(composeId: string): Promise<string> {
+  try {
+    const result = await api(`compose.one?composeId=${composeId}`, undefined, 'GET')
+    return result?.composeStatus || result?.status || 'unknown'
+  } catch (e) {
+    console.error('[Dokploy] getAppStatus error:', e)
+    return 'error'
+  }
+}
