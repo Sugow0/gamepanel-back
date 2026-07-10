@@ -180,7 +180,7 @@ export async function createApplication(server: GameServer) {
   await api('compose.update', { 
     composeId: app.composeId, 
     sourceType: 'raw',
-    dockerCompose: compose
+    composeFile: compose
   })
   await api('compose.deploy', { composeId: app.composeId })
   return { composeId: app.composeId, compose }
