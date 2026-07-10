@@ -275,8 +275,10 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
         if (cleanCmd.startsWith('rcon-cli ')) cleanCmd = cleanCmd.replace('rcon-cli ', '')
         if (cleanCmd.startsWith('/')) cleanCmd = cleanCmd.substring(1)
         
-        const host = process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '').split(':')[0] || '127.0.0.1'
-        const port = server.port + 1
+        // Puisque le serveur Minecraft et le backend sont tous les deux sur le réseau 'dokploy-network',
+        // on peut se connecter directement via le nom du service Docker sur le port interne.
+        const host = server.dokloy_app
+        const port = 25575 // Port interne du conteneur (pas besoin de passer par l'IP publique)
         const password = server.sftp_password || 'rconpass123'
         
         const rcon = await Rcon.connect({ host, port, password })
