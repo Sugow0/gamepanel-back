@@ -139,10 +139,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
           "UPDATE servers SET compose_id = $1, status = 'starting' WHERE id = $2",
           [composeId, id]
         )
-        // Transition vers online après 45 secondes (le temps de pull l'image et démarrer)
-        setTimeout(() => {
-          db.query("UPDATE servers SET status = 'online' WHERE id = $1", [id]).catch(console.error)
-        }, 45000)
+        // Le status-worker s'occupera de passer le serveur en 'online'
       } catch (e) {
         console.error('[Deploy]', id, e)
         await db.query("UPDATE servers SET status = 'error' WHERE id = $1", [id])
@@ -185,10 +182,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
       await db.query("UPDATE servers SET status = 'starting' WHERE id = $1", [id])
       try {
         await deployApp(s.compose_id)
-        // Transition vers online après 15 secondes
-        setTimeout(() => {
-          db.query("UPDATE servers SET status = 'online' WHERE id = $1", [id]).catch(console.error)
-        }, 15000)
+        // Le status-worker s'occupera de passer le serveur en 'online' quand Dokploy aura fini
         return { ok: true, status: 'starting' }
       } catch (e: any) {
         return error(500, { message: e.message })

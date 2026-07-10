@@ -2,6 +2,7 @@ import { Elysia } from 'elysia'
 import { cors }    from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { serversRoutes } from './routes/servers'
+import { startStatusWorker } from './services/status-worker'
 
 const app = new Elysia()
   .use(cors())
@@ -29,3 +30,6 @@ console.log(`📖 Swagger docs  → http://localhost:${app.server?.port}/docs`)
 if (!process.env.DOKPLOY_URL) {
   console.warn('⚠️  DOKPLOY_URL non configuré — les déploiements seront simulés')
 }
+
+// Lancer le worker qui synchronise les statuts en tâche de fond
+startStatusWorker()
