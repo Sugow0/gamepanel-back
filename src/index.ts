@@ -22,7 +22,7 @@ const app = new Elysia()
 
   .use(serversRoutes)
 
-  .listen(process.env.PORT ?? 3001)
+  .listen({ port: process.env.PORT ?? 3001, hostname: '0.0.0.0' })
 
 console.log(`🎮 GamePanel API → http://localhost:${app.server?.port}`)
 console.log(`📖 Swagger docs  → http://localhost:${app.server?.port}/docs`)
