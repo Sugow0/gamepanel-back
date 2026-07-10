@@ -218,9 +218,9 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
         pvp=$6, online_mode=$7, whitelist=$8, seed=$9, view_distance=$10,
         enable_command_block=$11, allow_flight=$12, spawn_protection=$13
        WHERE id=$14`,
-      [b.motd, b.memory, b.maxPlayers, b.difficulty, b.gamemode,
-       b.pvp, b.onlineMode, b.whitelist, b.seed, b.viewDistance,
-       b.enableCommandBlock, b.allowFlight, b.spawnProtection, id]
+      [b.motd, b.memory, b.maxPlayers ?? b.max_players, b.difficulty, b.gamemode,
+       b.pvp, b.onlineMode ?? b.online_mode, b.whitelist, b.seed, b.viewDistance ?? b.view_distance,
+       b.enableCommandBlock ?? b.enable_command_block, b.allowFlight ?? b.allow_flight, b.spawnProtection ?? b.spawn_protection, id]
     )
     if (rows[0].compose_id && rows[0].status === 'online') {
       try {
