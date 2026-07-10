@@ -110,7 +110,7 @@ ${envBlock}
   sftp-${s.dokloy_app}:
     image: atmoz/sftp:latest
     restart: unless-stopped
-    command: "sftp-${s.dokloy_app}:${s.sftp_password}:1001"
+    command: "sftp-${s.dokloy_app}:${s.sftp_password}:1000"
     ports:
       - "${sftpPort}:22"
     volumes:
@@ -148,7 +148,7 @@ services:
   sftp-${s.dokloy_app}:
     image: atmoz/sftp:latest
     restart: unless-stopped
-    command: "sftp-${s.dokloy_app}:${s.sftp_password}:1001"
+    command: "sftp-${s.dokloy_app}:${s.sftp_password}:1000"
     ports:
       - "${sftpPort}:22"
     volumes:
