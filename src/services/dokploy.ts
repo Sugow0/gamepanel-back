@@ -186,6 +186,19 @@ export async function createApplication(server: GameServer) {
   return { composeId: app.composeId, compose }
 }
 
+export async function updateApplication(server: GameServer, status: string) {
+  if (!server.compose_id) return
+  const compose = buildCompose(server)
+  await api('compose.update', { 
+    composeId: server.compose_id, 
+    sourceType: 'raw',
+    composeFile: compose
+  })
+  if (['online', 'starting'].includes(status)) {
+    await api('compose.deploy', { composeId: server.compose_id })
+  }
+}
+
 export const deployApp = (id: string) => api('compose.deploy', { composeId: id })
 export const stopApp   = (id: string) => api('compose.stop',   { composeId: id })
 

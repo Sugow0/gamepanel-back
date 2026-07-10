@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
-import { createApplication, deployApp, stopApp, deleteApp, getAppLogs } from '../services/dokploy'
+import { createApplication, deployApp, stopApp, deleteApp, getAppLogs, updateApplication } from '../services/dokploy'
 
 // ── Catalog (reproduit côté backend pour validation) ───────────────────────
 const GAME_CATALOG: Record<string, { lgsmId: string | null; lgsmTag: string | null; image: string }> = {
@@ -235,14 +235,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
     if (rows[0].compose_id) {
       try {
         const updated = (await db.query('SELECT * FROM servers WHERE id = $1', [id])).rows[0]
-        const compose = buildCompose(updated)
-        // Met toujours à jour le fichier compose dans Dokploy
-        await api('compose.update', { composeId: updated.compose_id, sourceType: 'raw', composeFile: compose })
-        
-        // Redéploie le conteneur si le serveur est déjà en cours de fonctionnement ou de démarrage
-        if (['online', 'starting'].includes(updated.status)) {
-          await api('compose.deploy', { composeId: updated.compose_id })
-        }
+        await updateApplication(updated, updated.status)
       } catch (e) {
         console.error('Failed to update compose:', e)
       }
