@@ -2,6 +2,7 @@ import { Elysia } from 'elysia'
 import { cors }    from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { serversRoutes } from './routes/servers'
+import { filesRoutes } from './routes/files'
 import { startStatusWorker } from './services/status-worker'
 
 const app = new Elysia()
@@ -22,6 +23,7 @@ const app = new Elysia()
   }))
 
   .use(serversRoutes)
+  .use(filesRoutes)
 
   .listen({ port: process.env.PORT ?? 3001, hostname: '0.0.0.0' })
 
