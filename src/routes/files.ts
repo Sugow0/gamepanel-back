@@ -13,8 +13,8 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
-    const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : '172.17.0.1'
+    const sftpPort = 22
+    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 
@@ -46,8 +46,8 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
-    const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : '172.17.0.1'
+    const sftpPort = 22
+    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 
@@ -75,8 +75,8 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
     const { path, content } = body as { path: string, content: string }
 
-    const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : '172.17.0.1'
+    const sftpPort = 22
+    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 
@@ -103,8 +103,8 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
-    const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : '172.17.0.1'
+    const sftpPort = 22
+    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 

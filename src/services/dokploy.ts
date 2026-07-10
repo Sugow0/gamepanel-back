@@ -136,6 +136,11 @@ function buildLinuxGSMCompose(s: GameServer): string {
   const tag = s.lgsm_tag ?? s.lgsm_id?.replace(/server$/, '') ?? s.game
 
   return `version: "3.8"
+networks:
+  default:
+    name: dokploy-network
+    external: true
+
 services:
   ${s.dokloy_app}:
     image: ghcr.io/gameservermanagers/gameserver:${tag}
