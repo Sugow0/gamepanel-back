@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
-import { createApplication, deployApp, stopApp, deleteApp, getAppLogs, updateApplication } from '../services/dokploy'
+import { createApplication, deployApp, stopApp, deleteApp, getAppLogs, updateApplication, getAppStatus } from '../services/dokploy'
 
 // ── Catalog (reproduit côté backend pour validation) ───────────────────────
 const GAME_CATALOG: Record<string, { lgsmId: string | null; lgsmTag: string | null; image: string }> = {
@@ -33,6 +33,15 @@ function rowToServer(row: Record<string, any>) {
   const sftpPort = 2220 + parseInt(row.id.replace(/\D/g, '')) % 1000
   return {
     ...row,
+    maxPlayers:         row.max_players,
+    mcType:             row.mc_type,
+    mcVersion:          row.version,
+    onlineMode:         row.online_mode,
+    viewDistance:       row.view_distance,
+    enableCommandBlock: row.enable_command_block,
+    allowFlight:        row.allow_flight,
+    spawnProtection:    row.spawn_protection,
+    extraEnvVars:       row.extra_env_vars,
     players:     { online: 0, max: row.max_players },
     ram:         { used: 0,   alloc: parseInt(row.memory) * 1024 || 4096 },
     cpu:         0,
@@ -195,7 +204,30 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
         return error(500, { message: e.message })
       }
     }
-    return error(400, { message: 'Action invalide (start|stop|restart)' })
+    
+    if (action === 'sync') {
+      try {
+        const dokployStatus = await getAppStatus(s.compose_id)
+        // Map dokploy status to ours (running -> online, stopped -> offline, etc.)
+        let newStatus = s.status
+        if (dokployStatus === 'running' || dokployStatus === 'online') newStatus = 'online'
+        else if (dokployStatus === 'stopped' || dokployStatus === 'offline') newStatus = 'offline'
+        else if (dokployStatus === 'error') newStatus = 'error'
+        else {
+          // Si on ne peut pas map, on regarde si on est bloqué depuis longtemps
+          // Par sécurité, on bascule à online si bloqué en starting
+          if (s.status === 'starting' || s.status === 'creating') newStatus = 'online'
+          if (s.status === 'stopping') newStatus = 'offline'
+        }
+
+        await db.query("UPDATE servers SET status = $1 WHERE id = $2", [newStatus, id])
+        return { ok: true, status: newStatus }
+      } catch (e: any) {
+        return error(500, { message: e.message })
+      }
+    }
+    
+    return error(400, { message: 'Action invalide (start|stop|restart|sync)' })
   })
 
   // Logs
