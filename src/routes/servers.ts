@@ -256,6 +256,15 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
     return { lines }
   })
 
+  // Envoyer une commande
+  .post('/:id/command', async ({ params: { id }, body }) => {
+    // Note: L'envoi de commandes interactives via Dokploy n'est pas exposé en REST natif.
+    // Pour une vraie implémentation, il faudrait utiliser RCON pour Minecraft, ou l'API websocket de Dokploy.
+    // Pour l'instant, on renvoie un succès simulé pour la démonstration.
+    const { cmd } = body as { cmd: string }
+    return { ok: true, message: `Commande '${cmd}' simulée avec succès. (RCON / WebSocket à implémenter)` }
+  })
+
   // Update settings
   .patch('/:id', async ({ params: { id }, body }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
