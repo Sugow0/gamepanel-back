@@ -90,6 +90,11 @@ function buildMinecraftCompose(s: GameServer): string {
   const envBlock = Object.entries(env).map(([k, v]) => `      ${k}: "${v}"`).join('\n')
 
   return `version: "3.8"
+networks:
+  default:
+    name: dokploy-network
+    external: true
+
 services:
   ${s.dokloy_app}:
     image: itzg/minecraft-server
