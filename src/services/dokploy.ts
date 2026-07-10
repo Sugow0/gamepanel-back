@@ -22,20 +22,43 @@ const api = async (path: string, body?: unknown, method = body ? 'POST' : 'GET')
 
 // ── Project ────────────────────────────────────────────────────────────────
 
-let _projectId: string | null = null
+let _environmentId: string | null = null
 
-export async function getOrCreateProject(): Promise<string> {
-  if (_projectId) return _projectId
-  const projects = await api('project.all')
-  const found = (Array.isArray(projects) ? projects : [])
-    .find((p: { name: string }) => p.name === PROJECT_NAME)
-  if (found) { _projectId = found.projectId; return found.projectId }
-  const created = await api('project.create', {
-    name: PROJECT_NAME,
-    description: 'Serveurs de jeux — GamePanel',
-  })
-  _projectId = created.projectId
-  return created.projectId
+export async function getOrCreateEnvironment(): Promise<string> {
+  if (_environmentId) return _environmentId
+  
+  // 1. Get or create Project
+  let projectId: string
+  const projects = await api('project.all') as any[]
+  let project = projects.find(p => p.name === PROJECT_NAME)
+  
+  if (!project) {
+    project = await api('project.create', { name: PROJECT_NAME, description: 'Serveurs de jeux — GamePanel' })
+    projectId = project.projectId
+  } else {
+    projectId = project.projectId
+  }
+
+  // 2. Get or create Environment
+  let envId: string
+  if (project.environments && project.environments.length > 0) {
+    envId = project.environments[0].environmentId
+  } else {
+    // If environments are not populated in project.all, we might need to fetch them
+    const envs = await api('project.byProjectId', { projectId })
+      .then((res: any) => res.environments)
+      .catch(() => [])
+    
+    if (envs && envs.length > 0) {
+      envId = envs[0].environmentId
+    } else {
+      const newEnv = await api('environment.create', { projectId, name: 'Production' })
+      envId = newEnv.environmentId
+    }
+  }
+
+  _environmentId = envId
+  return envId
 }
 
 // ── Compose builders ───────────────────────────────────────────────────────
@@ -145,10 +168,10 @@ export function buildCompose(s: GameServer): string {
 // ── Application CRUD ───────────────────────────────────────────────────────
 
 export async function createApplication(server: GameServer) {
-  const projectId = await getOrCreateProject()
-  const compose   = buildCompose(server)
-  const app       = await api('compose.create', {
-    projectId,
+  const environmentId = await getOrCreateEnvironment()
+  const compose       = buildCompose(server)
+  const app           = await api('compose.create', {
+    environmentId,
     name: server.dokloy_app,
     description: `${server.name} — GamePanel`,
     composeType: 'docker-compose',
