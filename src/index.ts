@@ -4,10 +4,7 @@ import { swagger } from '@elysiajs/swagger'
 import { serversRoutes } from './routes/servers'
 
 const app = new Elysia()
-  .use(cors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  }))
+  .use(cors())
   .use(swagger({
     path: '/docs',
     documentation: {
