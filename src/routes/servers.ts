@@ -1,4 +1,4 @@
-import { Elysia, t, error } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import { createApplication, deployApp, stopApp, deleteApp, getAppLogs } from '../services/dokploy'
 
@@ -24,6 +24,9 @@ const GAME_CATALOG: Record<string, { lgsmId: string | null; lgsmTag: string | nu
 
 const randHex = (n = 12) =>
   Buffer.from(crypto.getRandomValues(new Uint8Array(n))).toString('hex').slice(0, n).toUpperCase()
+
+const error = (status: number, body: any) => 
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 // ── Row → camelCase helper ─────────────────────────────────────────────────
 function rowToServer(row: Record<string, any>) {
