@@ -175,8 +175,13 @@ export async function createApplication(server: GameServer) {
     name: server.dokloy_app,
     description: `${server.name} — GamePanel`,
     composeType: 'docker-compose',
+    sourceType: 'raw',
   })
-  await api('compose.update', { composeId: app.composeId, dockerCompose: compose })
+  await api('compose.update', { 
+    composeId: app.composeId, 
+    sourceType: 'raw',
+    dockerCompose: compose
+  })
   await api('compose.deploy', { composeId: app.composeId })
   return { composeId: app.composeId, compose }
 }
