@@ -8,13 +8,13 @@ const error = (status: number, body: any) =>
 export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
   // GET /servers/:id/files?path=/data
-  .get('/', async ({ params: { id }, query }) => {
+  .get('/', async ({ request, params: { id }, query }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
     const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '') || 'votre_ip_serveur'
+    const host = process.env.PUBLIC_IP || request.headers.get('host')?.split(':')[0] || '127.0.0.1'
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 
@@ -41,13 +41,13 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
   })
 
   // GET /servers/:id/files/content?path=/data/server.properties
-  .get('/content', async ({ params: { id }, query }) => {
+  .get('/content', async ({ request, params: { id }, query }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
     const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '') || 'votre_ip_serveur'
+    const host = process.env.PUBLIC_IP || request.headers.get('host')?.split(':')[0] || '127.0.0.1'
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 
@@ -68,15 +68,15 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
   })
 
   // PUT /servers/:id/files/content
-  .put('/content', async ({ params: { id }, body }) => {
+  .put('/content', async ({ request, params: { id }, body }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
-    const { path, content } = body
+    const { path, content } = body as { path: string, content: string }
 
     const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '') || 'votre_ip_serveur'
+    const host = process.env.PUBLIC_IP || request.headers.get('host')?.split(':')[0] || '127.0.0.1'
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 
@@ -98,13 +98,13 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
   })
 
   // DELETE /servers/:id/files?path=/data/mods/old.jar
-  .delete('/', async ({ params: { id }, query }) => {
+  .delete('/', async ({ request, params: { id }, query }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
     const sftpPort = 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000
-    const host = process.env.PUBLIC_IP || process.env.DOKPLOY_URL?.replace(/^https?:\/\//, '') || 'votre_ip_serveur'
+    const host = process.env.PUBLIC_IP || request.headers.get('host')?.split(':')[0] || '127.0.0.1'
     const username = `sftp-${server.dokloy_app}`
     const password = server.sftp_password
 
