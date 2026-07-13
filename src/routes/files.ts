@@ -2,32 +2,41 @@ import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import Client from 'ssh2-sftp-client'
 
-const error = (status: number, body: any) => 
+const IS_MOCK = !process.env.DOKPLOY_URL
+
+const error = (status: number, body: any) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
+const MOCK_FILES = [
+  { type: 'd', name: 'world',  size: 0,    modifyTime: Date.now(), accessTime: Date.now(), rights: { user: 'rwx', group: 'r-x', other: 'r-x' }, owner: 1000, group: 1000 },
+  { type: '-', name: 'server.properties', size: 1024, modifyTime: Date.now(), accessTime: Date.now(), rights: { user: 'rw-', group: 'r--', other: 'r--' }, owner: 1000, group: 1000 },
+  { type: '-', name: 'eula.txt', size: 45, modifyTime: Date.now(), accessTime: Date.now(), rights: { user: 'rw-', group: 'r--', other: 'r--' }, owner: 1000, group: 1000 },
+  { type: 'd', name: 'logs',   size: 0,    modifyTime: Date.now(), accessTime: Date.now(), rights: { user: 'rwx', group: 'r-x', other: 'r-x' }, owner: 1000, group: 1000 },
+]
+
+const MOCK_CONTENT: Record<string, string> = {
+  'server.properties': `#Minecraft server properties\nonline-mode=true\nmax-players=20\ndifficulty=normal\n`,
+  'eula.txt': `#By changing the setting below to TRUE you are indicating your agreement to our EULA\neula=true\n`,
+}
+
+function getSftpHost(server: any) {
+  return process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
+}
 
 export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
   // GET /servers/:id/files?path=/data
-  .get('/', async ({ request, params: { id }, query }) => {
+  .get('/', async ({ params: { id }, query }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
-    const sftpPort = 22
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
-    const username = `sftp-${server.dokloy_app}`
-    const password = server.sftp_password
+    if (IS_MOCK) return MOCK_FILES
 
     const sftp = new Client()
     const targetPath = query.path || '/'
-
     try {
-      await sftp.connect({
-        host,
-        port: sftpPort,
-        username,
-        password
-      })
+      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
       const list = await sftp.list(targetPath)
       await sftp.end()
       return list
@@ -41,20 +50,19 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
   })
 
   // GET /servers/:id/files/content?path=/data/server.properties
-  .get('/content', async ({ request, params: { id }, query }) => {
+  .get('/content', async ({ params: { id }, query }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
-    const sftpPort = 22
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
-    const username = `sftp-${server.dokloy_app}`
-    const password = server.sftp_password
+    if (IS_MOCK) {
+      const fileName = query.path.split('/').pop() ?? ''
+      return { content: MOCK_CONTENT[fileName] ?? `# mock content for ${query.path}\n` }
+    }
 
     const sftp = new Client()
-
     try {
-      await sftp.connect({ host, port: sftpPort, username, password })
+      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
       const buffer = await sftp.get(query.path)
       await sftp.end()
       return { content: (buffer as Buffer).toString('utf-8') }
@@ -68,22 +76,18 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
   })
 
   // PUT /servers/:id/files/content
-  .put('/content', async ({ request, params: { id }, body }) => {
+  .put('/content', async ({ params: { id }, body }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
     const { path, content } = body as { path: string, content: string }
 
-    const sftpPort = 22
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
-    const username = `sftp-${server.dokloy_app}`
-    const password = server.sftp_password
+    if (IS_MOCK) return { ok: true }
 
     const sftp = new Client()
-
     try {
-      await sftp.connect({ host, port: sftpPort, username, password })
+      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
       await sftp.put(Buffer.from(content, 'utf-8'), path)
       await sftp.end()
       return { ok: true }
@@ -98,20 +102,16 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
   })
 
   // DELETE /servers/:id/files?path=/data/mods/old.jar
-  .delete('/', async ({ request, params: { id }, query }) => {
+  .delete('/', async ({ params: { id }, query }) => {
     const { rows } = await db.query('SELECT * FROM servers WHERE id = $1', [id])
     const server = rows[0]
     if (!server) return error(404, { message: 'Serveur introuvable' })
 
-    const sftpPort = 22
-    const host = process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
-    const username = `sftp-${server.dokloy_app}`
-    const password = server.sftp_password
+    if (IS_MOCK) return { ok: true }
 
     const sftp = new Client()
-
     try {
-      await sftp.connect({ host, port: sftpPort, username, password })
+      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
       const stat = await sftp.stat(query.path)
       if (stat.isDirectory) {
         await sftp.rmdir(query.path, true)
