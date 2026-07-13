@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import Client from 'ssh2-sftp-client'
+import { Socket } from 'net'
 
 const IS_MOCK = !process.env.DOKPLOY_URL
 
@@ -23,6 +24,14 @@ function getSftpHost(server: any) {
   return process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
 }
 
+// Bun (Alpine) throws ENOTSUP when ssh2 calls sock.setTimeout().
+// Passing a pre-connected Socket via cfg.sock bypasses that code path entirely.
+async function connectSftp(sftp: Client, server: any) {
+  const sock = new Socket()
+  sock.connect({ host: getSftpHost(server), port: 22 })
+  await (sftp.connect as any)({ sock, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
+}
+
 export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
   // GET /servers/:id/files?path=/data
@@ -36,7 +45,7 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
     const sftp = new Client()
     const targetPath = query.path || '/'
     try {
-      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
+      await connectSftp(sftp, server)
       const list = await sftp.list(targetPath)
       await sftp.end()
       return list
@@ -62,7 +71,7 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
     const sftp = new Client()
     try {
-      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
+      await connectSftp(sftp, server)
       const buffer = await sftp.get(query.path)
       await sftp.end()
       return { content: (buffer as Buffer).toString('utf-8') }
@@ -87,7 +96,7 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
     const sftp = new Client()
     try {
-      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
+      await connectSftp(sftp, server)
       await sftp.put(Buffer.from(content, 'utf-8'), path)
       await sftp.end()
       return { ok: true }
@@ -111,7 +120,7 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
     const sftp = new Client()
     try {
-      await sftp.connect({ host: getSftpHost(server), port: 22, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
+      await connectSftp(sftp, server)
       const stat = await sftp.stat(query.path)
       if (stat.isDirectory) {
         await sftp.rmdir(query.path, true)
