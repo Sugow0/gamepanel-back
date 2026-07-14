@@ -24,13 +24,19 @@ function getSftpHost(server: any) {
   return process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
 }
 
+function getSftpPort(server: any) {
+  return process.env.NODE_ENV === 'development' 
+    ? 2220 + parseInt(server.id.replace(/\D/g, '')) % 1000 
+    : 22
+}
+
 async function connectSftp(sftp: Client, server: any) {
   return new Promise<void>((resolve, reject) => {
     const sock = new Socket()
     sock.on('error', reject)
     sock.on('close', () => reject(new Error('Socket closed before connection')))
     
-    sock.connect({ host: getSftpHost(server), port: 22 }, async () => {
+    sock.connect({ host: getSftpHost(server), port: getSftpPort(server) }, async () => {
       // Retirer les listeners temporaires pour laisser ssh2-sftp-client gérer
       sock.removeAllListeners('error')
       sock.removeAllListeners('close')
