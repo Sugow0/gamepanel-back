@@ -47,10 +47,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
     try {
       await connectSftp(sftp, server)
       const list = await sftp.list(targetPath)
-      await sftp.end()
       return list
     } catch (e: any) {
       return error(500, { message: e.message })
+    } finally {
+      sftp.end()
     }
   }, {
     query: t.Object({
@@ -73,10 +74,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
     try {
       await connectSftp(sftp, server)
       const buffer = await sftp.get(query.path)
-      await sftp.end()
       return { content: (buffer as Buffer).toString('utf-8') }
     } catch (e: any) {
       return error(500, { message: e.message })
+    } finally {
+      sftp.end()
     }
   }, {
     query: t.Object({
@@ -98,10 +100,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
     try {
       await connectSftp(sftp, server)
       await sftp.put(Buffer.from(content, 'utf-8'), path)
-      await sftp.end()
       return { ok: true }
     } catch (e: any) {
       return error(500, { message: e.message })
+    } finally {
+      sftp.end()
     }
   }, {
     body: t.Object({
@@ -127,10 +130,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
       } else {
         await sftp.delete(query.path)
       }
-      await sftp.end()
       return { ok: true }
     } catch (e: any) {
       return error(500, { message: e.message })
+    } finally {
+      sftp.end()
     }
   }, {
     query: t.Object({
