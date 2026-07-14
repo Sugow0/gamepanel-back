@@ -24,12 +24,25 @@ function getSftpHost(server: any) {
   return process.env.NODE_ENV === 'development' ? '127.0.0.1' : `sftp-${server.dokloy_app}`
 }
 
-// Bun (Alpine) throws ENOTSUP when ssh2 calls sock.setTimeout().
-// Passing a pre-connected Socket via cfg.sock bypasses that code path entirely.
 async function connectSftp(sftp: Client, server: any) {
-  const sock = new Socket()
-  sock.connect({ host: getSftpHost(server), port: 22 })
-  await (sftp.connect as any)({ sock, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
+  return new Promise<void>((resolve, reject) => {
+    const sock = new Socket()
+    sock.on('error', reject)
+    sock.on('close', () => reject(new Error('Socket closed before connection')))
+    
+    sock.connect({ host: getSftpHost(server), port: 22 }, async () => {
+      // Retirer les listeners temporaires pour laisser ssh2-sftp-client gérer
+      sock.removeAllListeners('error')
+      sock.removeAllListeners('close')
+      
+      try {
+        await (sftp.connect as any)({ sock, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
+        resolve()
+      } catch (err) {
+        reject(err)
+      }
+    })
+  })
 }
 
 export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
