@@ -31,33 +31,20 @@ function getSftpPort(server: any) {
 }
 
 async function connectSftp(sftp: Client, server: any) {
-  return new Promise<void>((resolve, reject) => {
-    const sock = new Socket()
-    
-    // Monkey-patch pour empêcher Bun/Alpine de crasher (ssh2 utilise ces méthodes)
-    ;(sock as any).setTimeout = function() { return this }
-    ;(sock as any).setNoDelay = function() { return this }
-    ;(sock as any).setKeepAlive = function() { return this }
-    
-    sock.on('error', reject)
-    sock.on('close', () => reject(new Error('Socket closed before connection')))
-    
-    sock.connect({ host: getSftpHost(server), port: getSftpPort(server) }, async () => {
-      // Retirer les listeners temporaires pour laisser ssh2-sftp-client gérer
-      sock.removeAllListeners('error')
-      sock.removeAllListeners('close')
-      
-      try {
-        console.log(`[SFTP] Connecting to ${getSftpHost(server)}:${getSftpPort(server)} as sftp-${server.dokloy_app}`)
-        await (sftp.connect as any)({ sock, username: `sftp-${server.dokloy_app}`, password: server.sftp_password })
-        console.log(`[SFTP] Connected successfully!`)
-        resolve()
-      } catch (err) {
-        console.error(`[SFTP] Auth/Connect Error:`, err)
-        reject(err)
-      }
+  try {
+    console.log(`[SFTP] Connecting to ${getSftpHost(server)}:${getSftpPort(server)} as sftp-${server.dokloy_app}`)
+    await sftp.connect({
+      host: getSftpHost(server),
+      port: getSftpPort(server),
+      username: `sftp-${server.dokloy_app}`,
+      password: server.sftp_password,
+      readyTimeout: 10000
     })
-  })
+    console.log(`[SFTP] Connected successfully!`)
+  } catch (err: any) {
+    console.error(`[SFTP] Auth/Connect Error:`, err)
+    throw err
+  }
 }
 
 export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
