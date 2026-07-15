@@ -1,7 +1,10 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
-import Client from 'ssh2-sftp-client'
-import { Socket } from 'net'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import { join } from 'path'
+
+const execAsync = promisify(exec)
 
 const IS_MOCK = !process.env.DOKPLOY_URL
 
@@ -30,20 +33,24 @@ function getSftpPort(server: any) {
     : 22
 }
 
-async function connectSftp(sftp: Client, server: any) {
+async function runSftpWorker(action: string, server: any, targetPath: string, content: string = '') {
+  const host = getSftpHost(server)
+  const port = getSftpPort(server)
+  const username = `sftp-${server.dokloy_app}`
+  const workerPath = join(__dirname, '../sftp-worker.js')
+  
+  // Utiliser des arguments sûrs pour la ligne de commande
+  const args = [action, host, port, username, server.sftp_password, targetPath, content]
+  const escapedArgs = args.map(a => `'${String(a).replace(/'/g, "'\\''")}'`).join(' ')
+  
   try {
-    console.log(`[SFTP] Connecting to ${getSftpHost(server)}:${getSftpPort(server)} as sftp-${server.dokloy_app}`)
-    await sftp.connect({
-      host: getSftpHost(server),
-      port: getSftpPort(server),
-      username: `sftp-${server.dokloy_app}`,
-      password: server.sftp_password,
-      readyTimeout: 10000
-    })
-    console.log(`[SFTP] Connected successfully!`)
+    const { stdout } = await execAsync(`node ${workerPath} ${escapedArgs}`)
+    const res = JSON.parse(stdout.trim())
+    if (!res.success) throw new Error(res.error)
+    return res.data
   } catch (err: any) {
-    console.error(`[SFTP] Auth/Connect Error:`, err)
-    throw err
+    console.error(`[SFTP Worker Error]`, err)
+    throw new Error(err.message || 'Worker execution failed')
   }
 }
 
@@ -57,17 +64,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
     if (IS_MOCK) return MOCK_FILES
 
-    const sftp = new Client()
     const targetPath = query.path || '/'
     try {
-      await connectSftp(sftp, server)
-      const list = await sftp.list(targetPath)
-      return list
+      return await runSftpWorker('list', server, targetPath)
     } catch (e: any) {
-      console.error('[SFTP Error - GET /]', e)
       return error(500, { message: e.message })
-    } finally {
-      sftp.end()
     }
   }, {
     query: t.Object({
@@ -86,15 +87,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
       return { content: MOCK_CONTENT[fileName] ?? `# mock content for ${query.path}\n` }
     }
 
-    const sftp = new Client()
     try {
-      await connectSftp(sftp, server)
-      const buffer = await sftp.get(query.path)
-      return { content: (buffer as Buffer).toString('utf-8') }
+      const content = await runSftpWorker('get', server, query.path)
+      return { content }
     } catch (e: any) {
       return error(500, { message: e.message })
-    } finally {
-      sftp.end()
     }
   }, {
     query: t.Object({
@@ -112,15 +109,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
     if (IS_MOCK) return { ok: true }
 
-    const sftp = new Client()
     try {
-      await connectSftp(sftp, server)
-      await sftp.put(Buffer.from(content, 'utf-8'), path)
+      await runSftpWorker('put', server, path, content)
       return { ok: true }
     } catch (e: any) {
       return error(500, { message: e.message })
-    } finally {
-      sftp.end()
     }
   }, {
     body: t.Object({
@@ -137,20 +130,11 @@ export const filesRoutes = new Elysia({ prefix: '/servers/:id/files' })
 
     if (IS_MOCK) return { ok: true }
 
-    const sftp = new Client()
     try {
-      await connectSftp(sftp, server)
-      const stat = await sftp.stat(query.path)
-      if (stat.isDirectory) {
-        await sftp.rmdir(query.path, true)
-      } else {
-        await sftp.delete(query.path)
-      }
+      await runSftpWorker('delete', server, query.path)
       return { ok: true }
     } catch (e: any) {
       return error(500, { message: e.message })
-    } finally {
-      sftp.end()
     }
   }, {
     query: t.Object({
