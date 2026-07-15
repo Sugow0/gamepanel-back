@@ -30,6 +30,11 @@ const error = (status: number, body: any) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 // ── Row → camelCase helper ─────────────────────────────────────────────────
+function safeParse(str: string | object) {
+  if (typeof str !== 'string') return str || {}
+  try { return JSON.parse(str || '{}') } catch { return {} }
+}
+
 function rowToServer(row: Record<string, any>) {
   const sftpPort = 2220 + parseInt(row.id.replace(/\D/g, '')) % 1000
   return {
@@ -42,7 +47,8 @@ function rowToServer(row: Record<string, any>) {
     enableCommandBlock: row.enable_command_block,
     allowFlight:        row.allow_flight,
     spawnProtection:    row.spawn_protection,
-    extraEnvVars:       row.extra_env_vars,
+    extraEnvVars:       safeParse(row.extra_env_vars),
+    extra_env_vars:     safeParse(row.extra_env_vars),
     players:     { online: 0, max: row.max_players },
     ram:         { used: 0,   alloc: parseInt(row.memory) * 1024 || 4096 },
     cpu:         0,
@@ -311,7 +317,7 @@ export const serversRoutes = new Elysia({ prefix: '/servers' })
       [b.motd, b.memory, b.maxPlayers ?? b.max_players, b.difficulty, b.gamemode,
        b.pvp, b.onlineMode ?? b.online_mode, b.whitelist, b.seed, b.viewDistance ?? b.view_distance,
        b.enableCommandBlock ?? b.enable_command_block, b.allowFlight ?? b.allow_flight, b.spawnProtection ?? b.spawn_protection,
-       b.extraEnvVars ?? b.extra_env_vars ?? {}, id]
+       JSON.stringify(b.extraEnvVars ?? b.extra_env_vars ?? {}), id]
     )
     if (rows[0].compose_id) {
       try {
